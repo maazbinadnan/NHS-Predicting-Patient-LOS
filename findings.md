@@ -49,3 +49,6 @@ The following columns were identified as **Leakage** (information known only *af
 * `discharge_letter_sent`
 * `discharge_letter_sent_in_24hrs`
 * `discharge_letter_status`
+
+
+Basically divide our dataset into two, planned admissions and unplanned admissions and make different regression models for both. (untested theory but it is one)

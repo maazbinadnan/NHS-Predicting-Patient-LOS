@@ -1,9 +1,13 @@
 import pandas as pd
 import os
+import pandas as pd
+from sklearn.preprocessing import LabelEncoder
+
 
 cwd=os.getcwd()
 LancData = pd.read_csv(f"{cwd}/wwlLancMsc_data/wwlLancMsc_data.csv")
-# print(LancData.shape)
+
+# def EncodeColumns(dataframe:pd.DataFrame) -> pd.DataFrame:
 
 '''
 Function to Drop Columns that aren't useful
@@ -79,4 +83,7 @@ df_final = FillNANumerical(df)
 print("null values after")
 print(nullcheck(df_final))
 print(f"final shape: {df_final.shape}")
+
+df_final.to_csv("NHS_Data_Final_Cleaned.csv")
+
 
