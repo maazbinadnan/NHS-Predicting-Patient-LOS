@@ -3,30 +3,45 @@ import os
 import numpy as np
 import re
 from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.preprocessing import TargetEncoder
 
 # -------------------------------
 # 1. Configuration & Categories
 # -------------------------------
+
 categories = {
     "Patient Demographics": [
         'ethnic_origin_description', 'patient_age_on_admission', 'patient_age_on_discharge',
         'sex_national_code', 'general_medical_practice_desc', 'Deprivation Decile'
     ],
     "Hospital Demographics": [
-        'site_national_code', 'specialty_spec_code', 'ward_code_admission', 'ward_code_discharge',
+        'site_national_code', 'specialty_spec_code', 
+        'ward_code_admission', 'ward_code_discharge', # <--- KEPT THESE
         'specialty_division', 'specialty_directorate', 'hrg_group', 'hrg_sub_group',
         'ward_type_admission', 'ward_type_discharge', 'location', 'IP_admission', 'IP_discharge',
-        'arrival_mode_description', 'source_of_ref_description', 'place_of_incident'
+        'arrival_mode_description', 'source_of_ref_description', 'place_of_incident',
+        'attendancetype' # <--- ADDED THIS
     ],
     "Clinical & Medical": [
         'acuity_code', 'attend_dis_description', 'comorbidity_score', 'frailty_score',
         'inj_or_ail', 'is_NEWS2_flag', 'NEWS2', 'presenting_complaint',
         'spell_primary_diagnosis', 'spell_secondary_diagnosis'
-        # Note: 'spell_dominant_proc' excluded based on your previous code, 
-        # but usually highly predictive.
     ],
     "Target": "spell_episode_los",
-    # Columns to drop immediately (IDs, Descriptions, Dates if not using feature eng)
+    
+    "Target_Encode_Cols": [
+        'general_medical_practice_desc', 
+        'ethnic_origin_description',
+        'specialty_spec_code', 'specialty_division', 'specialty_directorate', 'hrg_group', 'hrg_sub_group',
+        'location', 'IP_admission', 'IP_discharge',
+        'ward_code_admission',
+        'arrival_mode_description', 'source_of_ref_description', 'place_of_incident','attendancetype',
+        'presenting_complaint', 'inj_or_ail', 'attend_dis_description', 
+        'spell_primary_diagnosis', 'spell_secondary_diagnosis','spell_dominant_proc'
+    ],
+    
     "To_Drop_Early": [
         "site_description", "site_local_code", "specialty_local_code", "specialty_spec_desc",
         "ward_name_admission", "ward_name_discharge", "date_of_birth_dt", "date_of_death_dt",
@@ -35,11 +50,10 @@ categories = {
         "covid19_diagnosis_description", "ID", 
         "discharge_letter_sent_in_24hrs", "discharge_letter_status", "discharge_letter_sent", 
         "sex_description.y", "spell_dominant_proc_description",
-        # Dropping date columns as per your original script logic
         'Admission_Date', 'admission_date_dt', 'discharge_date_dt', 
         'Arrival_Date', 'arrival_date_time', 'initial_assessment_date_time'
     ],
-    # Columns that constitute Data Leakage (proxies for LOS)
+    
     "Leakage_Columns": [
         'spell_los_hrs', 'spell_days_elective', 'spell_days_non_elective', 
         'delayed_discharges_no_of_days', 'delayed_discharges_flag', 
@@ -89,6 +103,11 @@ def target_transformation(df):
         df[categories['Target']] = np.log1p(df[categories['Target']])
     return df
 
+def plot_histogram(df:pd.DataFrame,cat_to_draw):
+    if categories[cat_to_draw] in df.columns:
+        sns.histplot(df[categories[cat_to_draw]])
+        plt.show()
+
 def split_outliers(df):
     """
     Splits data based on IQR. 
@@ -111,87 +130,17 @@ def split_outliers(df):
     print(f"Split Result: Normal={len(df_normal)}, Outliers={len(df_outliers)}")
     return df_normal, df_outliers
 
-# --- Transformation Functions (Updated for Safety) ---
+def target_encoding(df:pd.DataFrame) -> tuple[pd.DataFrame,TargetEncoder]:
+    df_encoded = df.copy() 
+    y= df_encoded[categories['Target']]
+    print(f"encoding columns: {categories['Target_Encode_Cols']}")
 
-def patient_demographics_transform(df, is_test=False, mappings=None):
-    cols = ['general_medical_practice_desc', 'ethnic_origin_description']
-    # Filter for cols that actually exist in this dataframe
-    cols = [c for c in cols if c in df.columns]
-    
-    target = categories['Target']
-    maps = mappings if is_test else {}
-    
-    for col in cols:
-        if not is_test:
-            # Learn the mapping (Median Encoding)
-            col_map = df.groupby(col)[target].median()
-            maps[col] = col_map
-        else:
-            col_map = maps.get(col)
-        
-        # Apply Mapping
-        if col_map is not None:
-            # .map returns NaN for unseen categories, fill with global median (or 0)
-            # Using transform median or a default safe value
-            df[f'{col}_encoded'] = df[col].map(col_map).fillna(df[target].median() if not is_test else 0)
-            df = df.drop(columns=[col])
-            
-    return df, maps
+    enc = TargetEncoder(target_type='continuous', smooth='auto', random_state=42)
 
-def hospital_demographics_transformed(df, is_test=False, mappings=None):
-    cols = categories['Hospital Demographics']
-    # Filter for cols that exist
-    cols = [c for c in cols if c in df.columns]
-    
-    target = categories['Target']
-    maps = mappings if is_test else {}
-    
-    for col in cols:
-        if not is_test:
-            col_map = df.groupby(col)[target].median()
-            maps[col] = col_map
-        else:
-            col_map = maps.get(col)
-            
-        if col_map is not None:
-            df[f'{col}_encoded'] = df[col].map(col_map).fillna(df[target].median() if not is_test else 0)
-            df = df.drop(columns=[col])
-            
-    return df, maps
+    transformed_data = enc.fit_transform(df_encoded[categories['Target_Encode_Cols']], y)
 
-def clinical_medical_transform(df, is_test=False, mappings=None):
-    # Pre-processing (String manipulation)
-    if 'spell_primary_diagnosis' in df.columns:
-        df['spell_primary_diagnosis'] = df['spell_primary_diagnosis'].astype(str).str[0]
-    if 'spell_secondary_diagnosis' in df.columns:
-        df['spell_secondary_diagnosis'] = df['spell_secondary_diagnosis'].astype(str).str[0]
-    if 'frailty_score' in df.columns:
-        df['frailty_score'] = df['frailty_score'].astype(str).str.extract(r'^(\d+)').astype(float)
-    if 'presenting_complaint' in df.columns:
-         df['presenting_complaint'] = df['presenting_complaint'].astype(str).apply(
-            lambda x: re.findall(r'\((.*?)\)', x)[0] if '(' in x else x
-        )
-
-    cols_to_encode = ['presenting_complaint', 'inj_or_ail', 'attend_dis_description', 
-                      'spell_primary_diagnosis', 'spell_secondary_diagnosis']
-    
-    # Filter existing
-    cols_to_encode = [c for c in cols_to_encode if c in df.columns]
-    
-    target = categories['Target']
-    maps = mappings if is_test else {}
-
-    for col in cols_to_encode:
-        if not is_test:
-            col_map = df.groupby(col)[target].median()
-            maps[col] = col_map
-        else:
-            col_map = maps.get(col)
-        
-        if col_map is not None:
-             df[col] = df[col].map(col_map).fillna(df[target].median() if not is_test else 0)
-    
-    return df, maps
+    df_encoded[categories['Target_Encode_Cols']] = transformed_data
+    return df_encoded,enc
 
 # -------------------------------
 # 3. Execution Pipeline
@@ -201,7 +150,7 @@ def clinical_medical_transform(df, is_test=False, mappings=None):
 cwd = os.getcwd()
 try:
     # Adjust path as needed for your environment
-    LancData = pd.read_csv(f"NHS_Data_Final_Cleaned.csv") # Simplified path for example
+    LancData = pd.read_csv(f"wwlLancMsc_data\\wwlLancMsc_data.csv") # Simplified path for example
 except:
     LancData = pd.DataFrame() # Fallback
 
@@ -209,73 +158,16 @@ except:
 df = initial_cleaning(LancData)
 df = fill_na_values(df)
 
-# Step 2: Target Transformation
-df = target_transformation(df)
+#step 2: split dataset into outliers and normal
+df_normal,df_outliers = split_outliers(df=df)
 
-# Step 3: Split Outliers (On the transformed target)
-df_normal, df_outliers = split_outliers(df)
-
-# --- PROCESSING NORMAL DATA ---
-print("\nProcessing Normal Data...")
-# Split into Train/Test Dataframes (keeping Target included for now)
-# We do this because Target Encoding needs the target in the Training set.
-df_train, df_test = train_test_split(df_normal, test_size=0.2, random_state=42)
-
-# Apply Transformations (Learn on Train, Apply to Test)
-df_train, map_pat = patient_demographics_transform(df_train, is_test=False)
-df_test, _        = patient_demographics_transform(df_test, is_test=True, mappings=map_pat)
-
-df_train, map_hosp = hospital_demographics_transformed(df_train, is_test=False)
-df_test, _         = hospital_demographics_transformed(df_test, is_test=True, mappings=map_hosp)
-
-df_train, map_clin = clinical_medical_transform(df_train, is_test=False)
-df_test, _         = clinical_medical_transform(df_test, is_test=True, mappings=map_clin)
-
-# FINAL STEP: Separate X and y (and drop target from X)
-# This prevents Data Leakage
-X_normal_train = df_train.drop(columns=[categories['Target']])
-y_normal_train = df_train[categories['Target']]
-
-X_normal_test = df_test.drop(columns=[categories['Target']])
-y_normal_test = df_test[categories['Target']]
-
-print(f"Normal Train Shape: {X_normal_train.shape}")
-print(f"Normal Test Shape: {X_normal_test.shape}")
-
-# --- PROCESSING OUTLIER DATA (Repeat logic) ---
-print("\nProcessing Outlier Data...")
-df_out_train, df_out_test = train_test_split(df_outliers, test_size=0.2, random_state=42)
-
-# Reuse the functions (Learns new maps specific to outliers)
-df_out_train, map_pat_out = patient_demographics_transform(df_out_train, is_test=False)
-df_out_test, _            = patient_demographics_transform(df_out_test, is_test=True, mappings=map_pat_out)
-
-df_out_train, map_hosp_out = hospital_demographics_transformed(df_out_train, is_test=False)
-df_out_test, _             = hospital_demographics_transformed(df_out_test, is_test=True, mappings=map_hosp_out)
-
-df_out_train, map_clin_out = clinical_medical_transform(df_out_train, is_test=False)
-df_out_test, _             = clinical_medical_transform(df_out_test, is_test=True, mappings=map_clin_out)
-
-X_outliers_train = df_out_train.drop(columns=[categories['Target']])
-y_outliers_train = df_out_train[categories['Target']]
-
-X_outliers_test = df_out_test.drop(columns=[categories['Target']])
-y_outliers_test = df_out_test[categories['Target']]
-
-print(f"Outlier Train Shape: {X_outliers_train.shape}")
-print(f"Outlier Test Shape: {X_outliers_test.shape}")
+#step 3: target encode each
+df_normal_encoded,encoder_normal = target_encoding(df=df_normal)
 
 
-# Save Normal Data
-X_normal_train.to_csv("X_normal_train.csv", index=False)
-y_normal_train.to_csv("y_normal_train.csv", index=False)
-X_normal_test.to_csv("X_normal_test.csv", index=False)
-y_normal_test.to_csv("y_normal_test.csv", index=False)
+df_outliers_encoded,encoder_normal = target_encoding(df=df_outliers)
 
-# Save Outlier Data
-X_outliers_train.to_csv("X_outliers_train.csv", index=False)
-y_outliers_train.to_csv("y_outliers_train.csv", index=False)
-X_outliers_test.to_csv("X_outliers_test.csv", index=False)
-y_outliers_test.to_csv("y_outliers_test.csv", index=False)
+df_normal_encoded.to_csv("Normal_Data.csv",index=False)
 
-print("All files saved successfully.")
+df_outliers_encoded.to_csv("Outlier_Data.csv",index=False)
+
