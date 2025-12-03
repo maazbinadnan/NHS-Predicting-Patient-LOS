@@ -1,6 +1,5 @@
 """
 Hospital Length of Stay (LOS) Prediction Pipeline
-Complete end-to-end prediction system
 """
 
 import os
@@ -29,7 +28,7 @@ except Exception as e:
     XGBOOST_AVAILABLE = False
 
 # Set random seed for reproducibility
-np.random.seed(42)
+np.random.seed(50)
 
 # Optional styling for any plots you DO open
 sns.set_style("whitegrid")
@@ -480,7 +479,7 @@ class LOSPredictionPipeline:
         print("FINAL SUMMARY")
         print("=" * 70)
 
-        # Build comparison table (same structure as your screenshot)
+        # Build comparison table
         comparison_rows = []
         for model_name in self.results:
             comparison_rows.append({
@@ -493,7 +492,7 @@ class LOSPredictionPipeline:
 
         comparison_df = pd.DataFrame(comparison_rows).sort_values('MAE').reset_index(drop=True)
 
-        # Save to CSV (this is your "compare" file)
+        # Save to CSV
         comparison_df.to_csv('model_comparison_results.csv', index=True)
         print("\n✓ Saved comparison table to 'model_comparison_results.csv'")
 
