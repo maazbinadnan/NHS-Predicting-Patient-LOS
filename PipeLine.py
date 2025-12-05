@@ -1,4 +1,4 @@
-from Preprocessing import MedicalDataPreprocessor
+from preprocessing import MedicalDataPreprocessor
 from Regression import ModelTrainer
 import pandas as pd
 import pickle
