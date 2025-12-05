@@ -100,8 +100,10 @@ class MedicalDataPreprocessor:
         """Fits scalers on the training data."""
         if self.cfg.STD_SCALE_COLS:
             self.std_scaler.fit(df[self.cfg.STD_SCALE_COLS])
+            
         if self.cfg.ROBUST_SCALE_COLS:
             self.rob_scaler.fit(df[self.cfg.ROBUST_SCALE_COLS])
+            
 
     def transform_scaling(self, df: pd.DataFrame) -> pd.DataFrame:
         """Applies scaling to data."""
@@ -122,10 +124,30 @@ class MedicalDataPreprocessor:
             df[self.cfg.TARGET] = np.log1p(df[self.cfg.TARGET]) 
         return df
 
+    def classify_outliers(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Splits data based on IQR of the Target.
+        WARNING: Only usable during TRAINING. 
+        """
+        target = self.cfg.TARGET
+        if target not in df.columns:
+            raise ValueError("Cannot split outliers: Target column missing.")
+
+        Q1 = df[target].quantile(0.25)
+        Q3 = df[target].quantile(0.75)
+        IQR = Q3 - Q1
+        upper_limit = Q3 + 1.5 * IQR
+        lower_limit = Q1 - 1.5 * IQR
+
+        df["is_outlier"]  = (df[target] > upper_limit) | (df[target] < lower_limit)
+        df = df.drop(columns=self.cfg.TARGET)
+        return df
+
     def split_outliers(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
         Splits data based on IQR of the Target.
         WARNING: Only usable during TRAINING. 
+        returns: Inliers and then Outliers
         """
         target = self.cfg.TARGET
         if target not in df.columns:

@@ -25,6 +25,22 @@ class ModelTrainer:
             "R2": r2_score(y_test, preds)
         }
 
+    def train_test_split(self, df: pd.DataFrame, target_col: str, training_phase: str,test_size=0.3):
+        """
+        Trains LR and RF models for a specific experiment (e.g., 'Global_Inliers').
+        """
+        print(f"\n🚀 Starting Training: {training_phase}")
+        
+        # 1. Data Prep
+        if target_col not in df.columns:
+            raise ValueError(f"Target '{target_col}' not found in dataframe.")
+            
+        X = df.drop(columns=[target_col])
+        y = df[target_col]
+
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
+        return X_train, X_test, y_train, y_test
+
     def train_and_save(self, df: pd.DataFrame, target_col: str, experiment_name: str):
         """
         Trains LR and RF models for a specific experiment (e.g., 'Global_Inliers').

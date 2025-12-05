@@ -14,7 +14,7 @@ from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.linear_model import PoissonRegressor, TweedieRegressor
 import matplotlib.pyplot as plt
 import seaborn as sns
-from PipeLine import run_training_pipeline_single
+from test_PipeLine import run_training_pipeline_single
 
 warnings.filterwarnings('ignore')
 

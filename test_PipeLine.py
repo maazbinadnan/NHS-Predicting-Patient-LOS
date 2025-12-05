@@ -4,7 +4,11 @@ import pandas as pd
 import pickle
 import os
 
-def run_training_pipeline(raw_df: pd.DataFrame):
+
+
+
+
+def run_preprocessing(raw_df: pd.DataFrame):
     """
     Orchestrates the cleaning, splitting, and encoding for TRAINING.
     """
@@ -85,7 +89,7 @@ def run_model_trainer(df_normal_encoded, df_outliers_encoded):
 
 if __name__ == "__main__":
     file =  pd.read_csv(os.path.join(os.getcwd(),"wwlLancMsc_data","wwlLancMsc_data.csv"))
-    df_inliers,df_outliers,processor = run_training_pipeline(raw_df=file)
+    df_inliers,df_outliers,processor = run_preprocessing(raw_df=file)
     results_inlier,results_outlier = run_model_trainer(df_normal_encoded=df_inliers,df_outliers_encoded=df_outliers)
     results_inlier.to_markdown("inlier_results.md")
     results_outlier.to_markdown("outlier_results.md")
