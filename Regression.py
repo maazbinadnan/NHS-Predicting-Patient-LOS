@@ -29,7 +29,7 @@ class ModelTrainer:
         """
         Trains LR and RF models for a specific experiment (e.g., 'Global_Inliers').
         """
-        print(f"\n🚀 Starting Training: {training_phase}")
+        print(f"\n🚀 train test split: {training_phase}")
         
         # 1. Data Prep
         if target_col not in df.columns:
