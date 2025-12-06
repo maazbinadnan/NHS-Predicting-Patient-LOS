@@ -106,8 +106,9 @@ class TrainXGBoostRegressor:
         )
         grid_search.fit(X_train, y_train)
 
-        print(f"  ✔ Best Params: {grid_search.best_params_}")
-        print(f"  ✔ Best CV Score (RMSE): {-grid_search.best_score_:.4f}")
+        print(f"   Best Params: {grid_search.best_params_}")
+        print(f"   Best CV Score (RMSE): {-grid_search.best_score_:.4f}")
 
         self.best_params = grid_search.best_params_
         return self.best_params
+
