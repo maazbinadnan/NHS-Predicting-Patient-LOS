@@ -4,6 +4,7 @@ from sklearn.linear_model import LinearRegression, Ridge, Lasso
 from sklearn.model_selection import GridSearchCV, train_test_split
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 from typing import Dict, Optional
+from sklearn.ensemble import IsolationForest
 
 class TrainLinearRegressor:
     def __init__(self, random_state: int = 42):
@@ -95,4 +96,30 @@ class TrainLinearRegressor:
         print(f"  ✔ Best CV Score (RMSE): {-grid_search.best_score_:.4f}")
         
         return grid_search.best_params_
+
+    def run_isolation_forest(self,
+                             df: pd.DataFrame,
+                             feature_list: list,
+                             contamination="auto",
+                             random_state=42):
+
+        print("\n[Running Isolation Forest for Anomaly Detection]")
+
+        df_copy = df.copy()
+
+        self.iso_model = IsolationForest(
+            contamination=contamination,
+            random_state=random_state
+        )
+        self.iso_model.fit(df_copy[feature_list])
+
+        df_copy["anomaly_score"] = self.iso_model.decision_function(df_copy[feature_list])
+        df_copy["anomaly"] = self.iso_model.predict(df_copy[feature_list])
+
+        print("Isolation Forest Completed")
+        print(df_copy["anomaly"].value_counts())
+
+        return df_copy
+
+      
 
