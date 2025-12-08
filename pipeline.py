@@ -22,12 +22,14 @@ class PipelineManager:
         train_df, test_df = train_test_split(df, test_size=0.2, random_state=42)
         
         print(f"[{branch_name}] Fitting Scalers & Encoders on {len(train_df)} samples...")
-        processor.fit_processors(train_df)
+        processor.fit_processors(train_df, task=branch_name.lower())
 
         train_processed = processor.transform_data(train_df)
         test_processed = processor.transform_data(test_df)
-
-        train_processed = processor.transform_target_log(train_processed)
+        if branch_name.lower() == "classification":
+            pass
+        else:
+            train_processed = processor.transform_target_log(train_processed)
 
         print(f"[{branch_name}] Ready. X_train shape: {train_processed.shape}")
         

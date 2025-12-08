@@ -86,13 +86,14 @@ class MedicalDataPreprocessor:
         # Create mask
         mask_outlier = (df[target] > upper_limit) | (df[target] < lower_limit)
         
-        df['is_outlier'] = mask_outlier.astype(bool)
-        #drop spell-episode_los
-        #df = df.drop(self.cfg.TARGET)
+        df['is_outlier'] = mask_outlier.astype(int)
+
+        #drop spell_episode_los
+        df = df.drop(columns= self.cfg.TARGET)
 
         return df
     
-    def fit_processors(self, df_train: pd.DataFrame):
+    def fit_processors(self, df_train: pd.DataFrame,task:str="prediction"):
         """Fits all scalers and encoders on the TRAINING set."""
         # 1. Fit Scalers
         if self.cfg.STD_SCALE_COLS:
@@ -100,10 +101,16 @@ class MedicalDataPreprocessor:
         if self.cfg.ROBUST_SCALE_COLS:
             self.rob_scaler.fit(df_train[self.cfg.ROBUST_SCALE_COLS])
         
-        # 2. Fit Target Encoder
-        X_encode = df_train[self.cfg.ENCODE_COLS]
-        y_encode = df_train[self.cfg.TARGET]
-        self.encoder.fit(X_encode, y_encode)
+        if task == "classification":
+            # 2. Fit Target Encoder
+            X_encode = df_train[self.cfg.ENCODE_COLS]
+            y_encode = df_train[self.cfg.CLASS_TARGET]
+            self.encoder.fit(X_encode, y_encode)
+        else:
+            # 2. Normal Target Encoder fit
+            X_encode = df_train[self.cfg.ENCODE_COLS]
+            y_encode = df_train[self.cfg.TARGET]
+            self.encoder.fit(X_encode, y_encode)
 
     def transform_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """Applies learned scalers and encoders to a dataset."""
@@ -126,10 +133,10 @@ class MedicalDataPreprocessor:
             df[self.cfg.TARGET] = np.log1p(df[self.cfg.TARGET]) 
         return df
     
-    def save_pre_processing_transformers(self,save_path:str):
+    def save_pre_processing_transformers(self,save_path:str,encoder_name:str):
         with open(save_path, 'wb') as f:
             pickle.dump({
                 'standard_scaler': self.std_scaler,
                 'robust_scaler': self.rob_scaler,
-                'target_encoder': self.encoder
+                f'{encoder_name}': self.encoder
             }, f)
