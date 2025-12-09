@@ -50,8 +50,9 @@ class TrainIsolationForest(model_interface):
         anomaly_count = val["anomaly"].value_counts()
         print("Isolation Forest Detection Complete. Anomaly Labels:")
         print(anomaly_count)
+        
 
 
-    def save_model(self, filepath: str):
-        """Saves the trained Isolation Forest model to the specified filepath."""
-        return super().save_model(filepath)
+    def save_model(self, filepath: str,filename:str):
+        """Saves the trained model to the specified filepath."""
+        return super().save_model(filepath,filename)

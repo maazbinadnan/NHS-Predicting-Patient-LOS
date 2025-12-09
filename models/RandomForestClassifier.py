@@ -58,6 +58,9 @@ class TrainRandomFClassifier(model_interface):
         print(classification_report(y_val,val_predictions))
         print(f"ROC-AUC Score: {roc_auc_score(y_val, val_probability):.4f}")
 
+        return val_predictions
+
+
     def fine_tune_model(self, train: pd.DataFrame, test: pd.DataFrame,filepath:str,**kwargs):
         # Extract X and Y for both sets
         X_train = train.drop(columns=self.cfg.CLASS_TARGET)
@@ -124,7 +127,8 @@ class TrainRandomFClassifier(model_interface):
             print(f"❌ Error saving scores to file: {e}")    
 
 
-        return self.model
+        return grid_search.best_params_
     
-    def save_model(self, filepath: str):
-        return super().save_model(filepath)
+    def save_model(self, filepath: str,filename:str):
+        """Saves the trained model to the specified filepath."""
+        return super().save_model(filepath,filename)

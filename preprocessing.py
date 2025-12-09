@@ -132,7 +132,7 @@ class MedicalDataPreprocessor:
         if self.cfg.TARGET in df.columns:
             df[self.cfg.TARGET] = np.log1p(df[self.cfg.TARGET]) 
         return df
-    
+        
     def save_pre_processing_transformers(self,save_path:str,encoder_name:str):
         with open(save_path, 'wb') as f:
             pickle.dump({
