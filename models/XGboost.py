@@ -71,15 +71,17 @@ class TrainXGBoostRegressor(model_interface):
             raise ValueError("No model provided. Train or load one first.")
 
         preds = self.model.predict(x_val)
+        return preds
 
-        rmse = np.sqrt(mean_squared_error(y_val, preds))
-        mae = mean_absolute_error(y_val, preds)
-        r2 = r2_score(y_val, preds)
+    def evaluate_model(self,original_values,predictions):
+        rmse = np.sqrt(mean_squared_error(original_values, predictions))
+        mae = mean_absolute_error(original_values, predictions)
+        r2 = r2_score(original_values, predictions)
 
-        print("--- Validation Run (XGBoost) ---")
+        print("--- Evaluation  (XGboost Regression) ---")
         print(f"RMSE: {rmse:.4f}")
-        print(f"MAE:  {mae:.4f}")
-        print(f"R²:   {r2:.4f}")
+        print(f"MAE:  {mae:.4f}")
+        print(f"R²:   {r2:.4f}")  
 
     # -----------------------------------------------------
     # HYPERPARAM TUNING
@@ -143,10 +145,11 @@ class TrainXGBoostRegressor(model_interface):
             f.write(f"- MAE: {mae:.4f}\n")
             f.write(f"- R² Score: {r2:.4f}\n")
 
-        return self.model
+        return grid_search.best_params_
 
     # -----------------------------------------------------
     # SAVE MODEL
     # -----------------------------------------------------
-    def save_model(self, filepath: str):
-        return super().save_model(filepath)
+    def save_model(self, filepath: str,filename:str):
+        """Saves the trained model to the specified filepath."""
+        return super().save_model(filepath,filename)

@@ -32,7 +32,7 @@ class model_interface(ABC):
 
 
     @abstractmethod
-    def run(self,val):
+    def run(self,val) -> object:
         pass
 
     @abstractmethod
@@ -44,12 +44,13 @@ class model_interface(ABC):
         pass
 
     @abstractmethod
-    def save_model(self, filepath: str):
+    def save_model(self, filepath: str,filename:str):
         if self.model == None:
             ValueError("please train the model")
 
+        filepath = os.path.join(filepath,filename)
         directory = os.path.dirname(filepath)
-
+        
         # Ensure directory exists
         if directory:
             os.makedirs(directory, exist_ok=True)

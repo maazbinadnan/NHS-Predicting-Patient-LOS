@@ -22,6 +22,7 @@ class PipelineManager:
             pass
         else:
             train_processed = processor.transform_target_log(train_df)
+            test_processed = processor.transform_target_log(test_df)
 
         print(f"[{branch_name}] Fitting Scalers & Encoders on {len(train_df)} samples...")
         processor.fit_processors(train_df, task=branch_name.lower())

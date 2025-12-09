@@ -70,17 +70,20 @@ class TrainRandomForestRegressor(model_interface):
         if self.model is None:
             raise ValueError("No model provided. Train or load one first.")
 
-        preds = self.model.predict(x_val)
+        preds = self.model.predict(x_val)        
+        return preds
 
-        rmse = np.sqrt(mean_squared_error(y_val, preds))
-        mae = mean_absolute_error(y_val, preds)
-        r2 = r2_score(y_val, preds)
+    def evaluate_model(self,original_values,predictions):
+        rmse = np.sqrt(mean_squared_error(original_values, predictions))
+        mae = mean_absolute_error(original_values, predictions)
+        r2 = r2_score(original_values, predictions)
 
-        print("--- Validation Run (Random Forest) ---")
+        print("--- Evaluation  (Random Forest Regression) ---")
         print(f"RMSE: {rmse:.4f}")
         print(f"MAE:  {mae:.4f}")
-        print(f"R²:   {r2:.4f}")
-        
+        print(f"R²:   {r2:.4f}")     
+
+
     # -----------------------------------------------------
     # HYPERPARAM TUNING
     # -----------------------------------------------------
@@ -148,6 +151,6 @@ class TrainRandomForestRegressor(model_interface):
     # -----------------------------------------------------
     # SAVE MODEL
     # -----------------------------------------------------
-    def save_model(self, filepath: str):
+    def save_model(self, filepath: str,filename:str):
         """Saves the trained model to the specified filepath."""
-        return super().save_model(filepath)
+        return super().save_model(filepath,filename)
