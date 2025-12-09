@@ -3,7 +3,7 @@ import numpy as np
 from sklearn.preprocessing import TargetEncoder, StandardScaler, RobustScaler
 from sklearn.model_selection import train_test_split
 from typing import Tuple
-from config import Config
+from Config.config import Config
 import pickle
 
 

@@ -1,134 +1,156 @@
 import pandas as pd
 import numpy as np
 from sklearn.linear_model import LinearRegression, Ridge, Lasso
-from sklearn.model_selection import GridSearchCV, train_test_split
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
-from typing import Dict
-from sklearn.ensemble import IsolationForest
+from sklearn.model_selection import GridSearchCV
+from typing import Dict, Any
 import os
+from Config.config import Config
+from models.model_interface import model_interface
 
-class TrainLinearRegressor:
-    def __init__(self, random_state: int = 42):
+
+class TrainLinearRegressor(model_interface):
+    """A class for training and tuning Linear, Ridge, or Lasso regression models."""
+    
+    def __init__(self, random_state: int = 42, model_type: str = 'linear', model_path: str | None = None):
+        """Initializes the regressor and sets the model type (linear, ridge, or lasso)."""
+        super().__init__(model_path=model_path)
         self.random_state = random_state
-        self.model = None
+        self.model_type = model_type.lower()
         self.best_params = None
+        self.x_train, self.y_train = None, None
+        self.x_test, self.y_test = None, None
+        self.cfg = Config()
 
-    def run_linear_regression(self, 
-                              X_train: pd.DataFrame,
-                              y_train: pd.Series,
-                              X_test: pd.DataFrame,
-                              y_test: pd.Series,
-                              filepath:str,
-                              alpha: float = 1.0,
-                              regularization: str = 'none') -> pd.DataFrame:
-        """
-        Runs a regression model (Basic OLS, Ridge, or Lasso) and evaluates it.
-        Returns: A dataframe comparing Actual vs Predicted values.
-        """
-        print(f"\n[Running {regularization.upper()} Regression] (alpha={alpha})")
+    def get_loaded_model_details(self):
+        """Returns details about the loaded model."""
+        return super().get_loaded_model_details()
+
+    # -----------------------------------------------------
+    # TRAIN WITH SPECIFIED PARAMETERS
+    # -----------------------------------------------------
+    def train_model_with_params(self, train: pd.DataFrame, test: pd.DataFrame, **kwargs):
+        """Initializes, trains, and evaluates the selected linear model (OLS, Ridge, or Lasso)."""
+
+        # 1. Select and initialize model architecture
+        alpha = kwargs.pop('alpha', 1.0) 
         
-        # 1. Select Model Architecture
-        if regularization == 'ridge':
-            self.model = Ridge(alpha=alpha, random_state=self.random_state)
-        elif regularization == 'lasso':
-            self.model = Lasso(alpha=alpha, random_state=self.random_state)
+        if self.model_type == 'ridge':
+            self.model = Ridge(alpha=alpha, random_state=self.random_state, **kwargs)
+            print(f"--- Training Ridge Model (alpha={alpha:.4f}) ---")
+        elif self.model_type == 'lasso':
+            self.model = Lasso(alpha=alpha, random_state=self.random_state, **kwargs)
+            print(f"--- Training Lasso Model (alpha={alpha:.4f}) ---")
         else:
-            self.model = LinearRegression(n_jobs=-1)
+            self.model = LinearRegression(n_jobs=-1, **kwargs)
+            print("--- Training OLS Linear Model ---")
 
-        # 2. Train (Fit)
-        self.model.fit(X_train, y_train)
+        # 2. Extract X and Y using Config
+        self.x_train = train.drop(columns=self.cfg.TARGET)
+        self.y_train = train[self.cfg.TARGET]
+        self.x_test = test.drop(columns=self.cfg.TARGET)
+        self.y_test = test[self.cfg.TARGET]
 
-        # 3. Predict & Evaluate
-        preds = self.model.predict(X_test)
+        # 3. Fit model
+        self.model.fit(self.x_train, self.y_train)
+
+        # 4. Evaluate
+        preds = self.model.predict(self.x_test)
+        rmse = np.sqrt(mean_squared_error(self.y_test, preds))
+        mae = mean_absolute_error(self.y_test, preds)
+        r2 = r2_score(self.y_test, preds)
+
+        print("--- Model Evaluation ---")
+        print(f"RMSE: {rmse:.4f}")
+        print(f"MAE: {mae:.4f}")
+        print(f"R² Score: {r2:.4f}")
+
+    # -----------------------------------------------------
+    # RUN ON VALIDATION SET
+    # -----------------------------------------------------
+    def run(self, val: pd.DataFrame):
+        """Runs the trained model on a validation set and prints metrics."""
+
+        y_val = val[self.cfg.TARGET]
+        x_val = val.drop(columns=[self.cfg.TARGET])
+
+        if self.model is None:
+            raise ValueError("No model provided. Train or load one first.")
+
+        preds = self.model.predict(x_val)
+
+        rmse = np.sqrt(mean_squared_error(y_val, preds))
+        mae = mean_absolute_error(y_val, preds)
+        r2 = r2_score(y_val, preds)
+
+        print("--- Validation Run (Linear Regressor) ---")
+        print(f"RMSE: {rmse:.4f}")
+        print(f"MAE:  {mae:.4f}")
+        print(f"R²:   {r2:.4f}")
         
+    # -----------------------------------------------------
+    # HYPERPARAM TUNING
+    # -----------------------------------------------------
+    def fine_tune_model(self, train: pd.DataFrame, test: pd.DataFrame, filepath: str):
+        """Performs Grid Search for optimal alpha using Ridge or Lasso."""
+
+        if self.model_type not in ['ridge', 'lasso']:
+            raise ValueError("Hyperparameter tuning is only supported for 'ridge' or 'lasso'.")
+
+        # 1. Extract X and Y
+        X_train = train.drop(columns=self.cfg.TARGET)
+        y_train = train[self.cfg.TARGET]
+        X_test = test.drop(columns=self.cfg.TARGET)
+        y_test = test[self.cfg.TARGET]
+        
+        print(f"\n--- Starting Hyperparameter Tuning for {self.model_type.upper()} ---")
+
+        # 2. Setup tuning parameters and estimator
+        param_grid = {'alpha': [0.01, 0.1, 1.0, 10.0, 50.0, 100.0]}
+        
+        base_model = Lasso(random_state=self.random_state) if self.model_type == 'lasso' else Ridge(random_state=self.random_state)
+        
+        # 3. Run Grid Search
+        grid_search = GridSearchCV(
+            estimator=base_model,
+            param_grid=param_grid,
+            scoring="neg_root_mean_squared_error",
+            cv=5,
+            verbose=2,
+            n_jobs=-1
+        )
+        grid_search.fit(X_train, y_train)
+
+        # 4. Extract and evaluate best model
+        self.best_params = grid_search.best_params_
+        self.model = grid_search.best_estimator_
+
+        preds = self.model.predict(X_test)
         rmse = np.sqrt(mean_squared_error(y_test, preds))
         mae = mean_absolute_error(y_test, preds)
         r2 = r2_score(y_test, preds)
 
-        print(f"  -> RMSE: {rmse:.4f}")
-        print(f"  -> MAE:  {mae:.4f}")
-        print(f"  -> R2:   {r2:.4f}")
+        print("\n--- Fine-Tuned Model Evaluation ---")
+        print(f"Best Parameters: {self.best_params}")
+        print(f"RMSE: {rmse:.4f}")
+        print(f"MAE:  {mae:.4f}")
+        print(f"R²:   {r2:.4f}")
 
-        """Saves regression scores to a markdown file."""
+        # 5. Save markdown output
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
         with open(filepath, "w") as f:
-            f.write(f"# Linear Regression Results\n\n")
+            f.write(f"# {self.model_type.upper()} Regression Results\n\n")
+            f.write(f"Best Parameters: {self.best_params}\n\n")
             f.write("## Performance Metrics\n")
-            f.write("| Metric | Value |\n")
-            f.write("|--------|-------|\n")
-            f.write(f"| RMSE | {rmse:.4f} |\n")
-            f.write(f"| MAE | {mae:.4f} |\n")
-            f.write(f"| R² | {r2:.4f} |\n")
-        # 4. Return Results
-        results = X_test.copy()
-        results['Actual_LOS'] = y_test
-        results['Predicted_LOS'] = preds
-        return results
+            f.write(f"- RMSE: {rmse:.4f}\n")
+            f.write(f"- MAE: {mae:.4f}\n")
+            f.write(f"- R² Score: {r2:.4f}\n")
 
-    def tune_linear_regression(self, 
-                                   X_train: pd.DataFrame, 
-                                   y_train: pd.Series, 
-                                   filename:str,
-                                   model_type: str = 'ridge',
-                                   output_dir: str = 'results'
-                                   ) -> Dict:
-
-            print(f"\n[Tuning {model_type.upper()}]...")
-
-            # Setup
-            param_grid = {'alpha': [0.01, 0.1, 1.0, 10.0, 50.0, 100.0]}
-
-            if model_type == 'lasso':
-                estimator = Lasso(random_state=self.random_state)
-            else:
-                estimator = Ridge(random_state=self.random_state)
-
-            # Grid Search
-            grid_search = GridSearchCV(
-                estimator=estimator,
-                param_grid=param_grid,
-                scoring='neg_root_mean_squared_error',
-                cv=5,
-                verbose=1
-            )
-            grid_search.fit(X_train, y_train)
-
-            # Results
-            best_alpha = grid_search.best_params_['alpha']
-            best_rmse = -grid_search.best_score_
-            # Save to File
-            os.makedirs(output_dir, exist_ok=True)
-            with open(os.path.join(output_dir, f'{model_type}_tuning_results_{filename}.md'), 'w') as f:
-                f.write(f"### Hyperparameter Tuning Results — **{model_type}**\n\n")
-                f.write("| **Metric**        | **Value** |\n")
-                f.write("|-------------------|-----------|\n")
-                f.write(f"| **Best Alpha**    | {best_alpha} |\n")
-                f.write(f"| **Best RMSE**     | {best_rmse} |\n")
-                f.write("| **Search Space**  | `[0.01, 0.1, 1.0, 10.0, 50.0, 100.0]` |\n\n")
-                f.write("*Model tuned using **5-Fold Cross-Validation**.*\n")
-                print(f"✔ Report saved to {output_dir}/{model_type}_tuning_results.md")
-
-            return grid_search.best_params_
-
-    def run_isolation_forest(self,
-                             df: pd.DataFrame,
-                             feature_list: list,
-                             contamination="auto",
-                             random_state=42):
-
-        print("\n[Running Isolation Forest for Anomaly Detection]")
-
-        df_copy = df.copy()
-
-        self.iso_model = IsolationForest(
-            contamination=contamination,
-            random_state=random_state
-        )
-        self.iso_model.fit(df_copy[feature_list])
-
-        df_copy["anomaly_score"] = self.iso_model.decision_function(df_copy[feature_list])
-        df_copy["anomaly"] = self.iso_model.predict(df_copy[feature_list])
-
-        print("Isolation Forest Completed")
-        print(df_copy["anomaly"].value_counts())
-
-        return df_copy
+        return grid_search.best_params_
+    
+    # -----------------------------------------------------
+    # SAVE MODEL
+    # -----------------------------------------------------
+    def save_model(self, filepath: str):
+        """Saves the trained model to the specified filepath."""
+        return super().save_model(filepath)

@@ -1,86 +1,97 @@
 import pandas as pd
 import numpy as np
 from xgboost import XGBRegressor
-from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
+from sklearn.model_selection import GridSearchCV
 from typing import Dict
+import os
+from Config.config import Config
+from models.model_interface import model_interface
 
-class TrainXGBoostRegressor:
-    def __init__(self, random_state: int = 42):
+
+class TrainXGBoostRegressor(model_interface):
+    def __init__(self, random_state: int = 42, model_path: str | None = None):
+        super().__init__(model_path=model_path)
         self.random_state = random_state
-        self.model = None
         self.best_params = None
+        self.x_train = None
+        self.y_train = None
+        self.x_test = None
+        self.y_test = None
+        self.cfg = Config()
 
-    def run_xgboost(self,
-                    X_train: pd.DataFrame,
-                    y_train: pd.Series,
-                    X_test: pd.DataFrame,
-                    y_test: pd.Series,
-                    filepath: str,
-                    learning_rate: float = 0.1,
-                    max_depth: int = 6,
-                    n_estimators: int = 200,
-                    subsample: float = 1.0,
-                    colsample_bytree: float = 1.0) -> pd.DataFrame:
-        """
-        Runs an XGBoost regression model and evaluates it.
-        Returns: A dataframe comparing Actual vs Predicted values.
-        """
+    def get_loaded_model_details(self):
+        return super().get_loaded_model_details()
 
-        print(f"\n[Running XGBOOST Regression] (n_estimators={n_estimators}, max_depth={max_depth}, lr={learning_rate})")
-
-        # 1. Select Model Architecture
+    # -----------------------------------------------------
+    # TRAIN WITH SPECIFIED PARAMETERS
+    # -----------------------------------------------------
+    def train_model_with_params(self, train: pd.DataFrame, test: pd.DataFrame, **kwargs):
+        
+        # initialize XGBoost Regressor with given params
         self.model = XGBRegressor(
-            learning_rate=learning_rate,
-            max_depth=max_depth,
-            n_estimators=n_estimators,
-            subsample=subsample,
-            colsample_bytree=colsample_bytree,
             random_state=self.random_state,
             n_jobs=-1,
-            objective="reg:squarederror"
+            objective="reg:squarederror",
+            **kwargs
         )
 
-        # 2. Train (Fit)
-        self.model.fit(X_train, y_train)
+        # Extract X and Y
+        self.x_train = train.drop(columns=self.cfg.TARGET)
+        self.y_train = train[self.cfg.TARGET]
 
-        # 3. Predict & Evaluate
-        preds = self.model.predict(X_test)
-        
-        rmse = np.sqrt(mean_squared_error(y_test, preds))
-        mae = mean_absolute_error(y_test, preds)
-        r2 = r2_score(y_test, preds)
+        self.x_test = test.drop(columns=self.cfg.TARGET)
+        self.y_test = test[self.cfg.TARGET]
 
-        print(f"  -> RMSE: {rmse:.4f}")
-        print(f"  -> MAE:  {mae:.4f}")
-        print(f"  -> R2:   {r2:.4f}")
+        # Fit model
+        self.model.fit(self.x_train, self.y_train)
 
-        # Save markdown performance report
-        with open(filepath, "w") as f:
-            f.write(f"# XGBoost Regression Results\n\n")
-            f.write("## Performance Metrics\n")
-            f.write("| Metric | Value |\n")
-            f.write("|--------|-------|\n")
-            f.write(f"| RMSE | {rmse:.4f} |\n")
-            f.write(f"| MAE | {mae:.4f} |\n")
-            f.write(f"| R² | {r2:.4f} |\n")
+        # Evaluate
+        preds = self.model.predict(self.x_test)
+        rmse = np.sqrt(mean_squared_error(self.y_test, preds))
+        mae = mean_absolute_error(self.y_test, preds)
+        r2 = r2_score(self.y_test, preds)
 
-        # 4. Return Results
-        results = X_test.copy()
-        results["Actual_LOS"] = y_test
-        results["Predicted_LOS"] = preds
-        return results
+        print("--- XGBoost Model Evaluation ---")
+        print(f"RMSE: {rmse:.4f}")
+        print(f"MAE: {mae:.4f}")
+        print(f"R² Score: {r2:.4f}")
 
-    def tune_xgboost(self,
-                     X_train: pd.DataFrame,
-                     y_train: pd.Series) -> Dict:
-        """
-        Performs GridSearchCV to find the best hyperparameters for XGBoost.
-        """
+        return preds
 
-        print("\n[Starting Hyperparameter Tuning for XGBOOST]...")
+    # -----------------------------------------------------
+    # RUN ON VALIDATION SET
+    # -----------------------------------------------------
+    def run(self, val: pd.DataFrame):
 
-        # Define Search Space
+        y_val = val[self.cfg.TARGET]
+        x_val = val.drop(columns=[self.cfg.TARGET])
+
+        if self.model is None:
+            raise ValueError("No model provided. Train or load one first.")
+
+        preds = self.model.predict(x_val)
+
+        rmse = np.sqrt(mean_squared_error(y_val, preds))
+        mae = mean_absolute_error(y_val, preds)
+        r2 = r2_score(y_val, preds)
+
+        print("--- Validation Run (XGBoost) ---")
+        print(f"RMSE: {rmse:.4f}")
+        print(f"MAE:  {mae:.4f}")
+        print(f"R²:   {r2:.4f}")
+
+    # -----------------------------------------------------
+    # HYPERPARAM TUNING
+    # -----------------------------------------------------
+    def fine_tune_model(self, train: pd.DataFrame, test: pd.DataFrame, filepath: str):
+
+        X_train = train.drop(columns=self.cfg.TARGET)
+        y_train = train[self.cfg.TARGET]
+
+        X_test = test.drop(columns=self.cfg.TARGET)
+        y_test = test[self.cfg.TARGET]
+
         param_grid = {
             "n_estimators": [200, 300],
             "max_depth": [3, 5, 7],
@@ -89,26 +100,53 @@ class TrainXGBoostRegressor:
             "colsample_bytree": [0.8, 1.0]
         }
 
-        # Define Model
-        estimator = XGBRegressor(
+        base_model = XGBRegressor(
             random_state=self.random_state,
             n_jobs=-1,
             objective="reg:squarederror"
         )
 
-        # Run Grid Search
         grid_search = GridSearchCV(
-            estimator=estimator,
+            estimator=base_model,
             param_grid=param_grid,
             scoring="neg_root_mean_squared_error",
             cv=5,
-            verbose=1
+            verbose=2,
+            n_jobs=-1
         )
+
+        print("\n--- Starting Hyperparameter Tuning for XGBoost ---")
         grid_search.fit(X_train, y_train)
 
-        print(f"   Best Params: {grid_search.best_params_}")
-        print(f"   Best CV Score (RMSE): {-grid_search.best_score_:.4f}")
-
         self.best_params = grid_search.best_params_
-        return self.best_params
+        self.model = grid_search.best_estimator_
 
+        preds = self.model.predict(X_test)
+
+        rmse = np.sqrt(mean_squared_error(y_test, preds))
+        mae = mean_absolute_error(y_test, preds)
+        r2 = r2_score(y_test, preds)
+
+        print("\n--- Fine-Tuned XGBoost Model Evaluation ---")
+        print(f"Best Parameters: {self.best_params}")
+        print(f"RMSE: {rmse:.4f}")
+        print(f"MAE:  {mae:.4f}")
+        print(f"R²:   {r2:.4f}")
+
+        # Save markdown output
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        with open(filepath, "w") as f:
+            f.write("# XGBoost Regression Results\n\n")
+            f.write(f"Best Parameters: {self.best_params}\n\n")
+            f.write("## Performance Metrics\n")
+            f.write(f"- RMSE: {rmse:.4f}\n")
+            f.write(f"- MAE: {mae:.4f}\n")
+            f.write(f"- R² Score: {r2:.4f}\n")
+
+        return self.model
+
+    # -----------------------------------------------------
+    # SAVE MODEL
+    # -----------------------------------------------------
+    def save_model(self, filepath: str):
+        return super().save_model(filepath)
