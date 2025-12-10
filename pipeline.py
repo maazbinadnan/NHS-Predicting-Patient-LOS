@@ -48,10 +48,10 @@ class PipelineManager:
         print("--- 3. Splitting Outliers (The Fork) ---")
         df_normal, df_outliers = global_processor.split_outliers(df)
 
-        train_inlier, test_norm = PipelineManager.process_branch(df_normal, "NORMAL")
+        train_inlier, test_inlier = PipelineManager.process_branch(df_normal, "NORMAL")
         train_out, test_out = PipelineManager.process_branch(df_outliers, "OUTLIER")
         
-        return train_inlier, test_norm, train_out, test_out
+        return train_inlier, test_inlier, train_out, test_out
 
     @staticmethod
     def run_no_split_pipeline(file_path: str):
