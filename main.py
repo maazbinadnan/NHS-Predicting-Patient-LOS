@@ -178,11 +178,18 @@ def train_evaluate_classifier(
 
     return final_df
 
+''' 
+
+MAIN FUNCTION TO CALL
+
+'''
+
+
 
 if __name__ == "__main__":
     f_path = "wwlLancMsc_data\\wwlLancMsc_data.csv"
     utility_funcs = PipelineRunner(f_path=f_path)
-
+    utility_funcs.pre_process_data()
     # -------------------------
     # Flow 1 - Entire Training
     # -------------------------
