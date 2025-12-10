@@ -7,9 +7,8 @@ from models.RandomForest import TrainRandomForestRegressor
 from models.XGboost import TrainXGBoostRegressor
 from models.IsolationForest import TrainIsolationForest
 from models.RandomForestClassifier import TrainRandomFClassifier
-from dotenv import load_dotenv
+from models.Logistic_Regression import TrainLogisticRegression
 import numpy as np
-load_dotenv()
 
 class PipelineRunner:
     def __init__(self, f_path: str):
@@ -137,6 +136,47 @@ def train_evaluate_model(
 
     return unpacked_df
 
+def train_evaluate_classifier(
+    classifier, 
+    train_df: pd.DataFrame, 
+    test_df: pd.DataFrame, 
+    utils:PipelineRunner,  # your object containing unpack, model dir, etc.
+    fine_tune_filepath: str | None = None,
+    save_filename: str | None = None
+):
+    """
+    Trains, predicts, unpacks, and evaluates a regression model.
+    
+    Args:
+        regressor: an instance of your Train*Regressor class
+        train_df: training dataframe
+        test_df: test dataframe
+        flow1_training: object with models_dir, unpack_target_log, etc.
+        fine_tune: whether to run fine-tuning (grid search)
+        fine_tune_filepath: filepath for saving fine-tune results (if any)
+        save_filename: name to save the trained model
+    """
+
+   
+    tune_params = classifier.fine_tune_model(train=train_df, test=test_df, filepath=fine_tune_filepath)
+    tune_params = {}
+
+    # 2️⃣ Train the model
+    classifier.train_model_with_params(train=train_df, test=test_df, **tune_params)
+    classifier.save_model(filepath=utils.models_dir, filename=save_filename)
+
+    # 4️⃣ Run predictions
+    predictions = classifier.run(val=test_df)
+
+    # 5️⃣ Prepare dataframe with actual & predicted values
+    final_df = pd.DataFrame({
+        "actual_outlier": test_df["is_outlier"],
+        "predicted_outlier": predictions
+    })
+
+
+    return final_df
+
 
 if __name__ == "__main__":
     f_path = "wwlLancMsc_data\\wwlLancMsc_data.csv"
@@ -147,29 +187,29 @@ if __name__ == "__main__":
     # -------------------------
     # Flow 1 - Entire Training
     # -------------------------
-    utility_funcs.load_no_split_data()
+    #utility_funcs.load_no_split_data()
 
-    # Define models to train: (Regressor class, model_type, model_filename)
-    no_split_models = [
-        (TrainLinearRegressor, "linear", "flow1_linear_reg.pkl"),
-        (TrainLinearRegressor, "lasso", "flow1_lasso_reg.pkl"),
-        (TrainLinearRegressor, "ridge", "flow1_ridge_reg.pkl"),
-        (TrainRandomForestRegressor, None, "flow1_random_forest_reg.pkl"),
-        (TrainXGBoostRegressor, None, "flow1_xgboost_reg.pkl")
-    ]
+    # # Define models to train: (Regressor class, model_type, model_filename)
+    # no_split_models = [
+    #     (TrainLinearRegressor, "linear", "flow1_linear_reg.pkl"),
+    #     (TrainLinearRegressor, "lasso", "flow1_lasso_reg.pkl"),
+    #     (TrainLinearRegressor, "ridge", "flow1_ridge_reg.pkl"),
+    #     (TrainRandomForestRegressor, None, "flow1_random_forest_reg.pkl"),
+    #     (TrainXGBoostRegressor, None, "flow1_xgboost_reg.pkl")
+    # ]
 
-    for reg_class, model_type, model_filename in no_split_models:
-        regressor = reg_class() if not model_type else reg_class(model_type=model_type)
-        fine_tune_dir = os.path.join(utility_funcs.fine_tune_dir, model_filename.replace(".pkl", ".md"))
+    # for reg_class, model_type, model_filename in no_split_models:
+    #     regressor = reg_class() if not model_type else reg_class(model_type=model_type)
+    #     fine_tune_dir = os.path.join(utility_funcs.fine_tune_dir, model_filename.replace(".pkl", ".md"))
 
-        train_evaluate_model(
-            regressor=regressor,
-            train_df=utility_funcs.nosplit_train,
-            test_df=utility_funcs.nosplit_test,
-            utils=utility_funcs,
-            fine_tune_filepath=fine_tune_dir,
-            save_filename=os.path.join(utility_funcs.models_dir, model_filename)
-        )
+    #     train_evaluate_model(
+    #         regressor=regressor,
+    #         train_df=utility_funcs.nosplit_train,
+    #         test_df=utility_funcs.nosplit_test,
+    #         utils=utility_funcs,
+    #         fine_tune_filepath=fine_tune_dir,
+    #         save_filename=os.path.join(utility_funcs.models_dir, model_filename)
+    #     )
 
 
 
@@ -181,14 +221,15 @@ if __name__ == "__main__":
 
     # Define models to train: (Regressor class, model_type, model_filename)
     classification_models = [
-        (TrainRandomFClassifier, "flow2_random_forest_classifier.pkl"),
+        #(TrainRandomFClassifier, "flow2_random_forest_classifier.pkl"),
+        (TrainLogisticRegression,"flow2_logistic_regression.pkl")
     ]
     for classifier_class, model_filename in classification_models:
         classifier = classifier_class()
         fine_tune_dir = os.path.join(utility_funcs.fine_tune_dir, model_filename.replace(".pkl", ".md"))
 
-        train_evaluate_model(
-            regressor=classifier,
+        train_evaluate_classifier(
+            classifier=classifier,
             train_df=utility_funcs.classification_train,
             test_df=utility_funcs.classification_test,
             utils=utility_funcs,
@@ -199,53 +240,53 @@ if __name__ == "__main__":
     # -------------------------
     # Flow 2 - Inliers Training
     # -------------------------
-    utility_funcs.load_inlier_data()
+    # utility_funcs.load_inlier_data()
 
-    # Define models to train: (Regressor class, model_type, model_filename)
-    inlier_models = [
-        (TrainLinearRegressor, "linear", "flow2_linear_reg_inliers.pkl"),
-        (TrainLinearRegressor, "lasso", "flow2_lasso_reg_inliers.pkl"),
-        (TrainLinearRegressor, "ridge", "flow2_ridge_reg_inliers.pkl"),
-        (TrainRandomForestRegressor, None, "flow2_random_forest_reg_inliers.pkl"),
-        (TrainXGBoostRegressor, None, "flow2_xgboost_reg_inliers.pkl")
-    ]
+    # # Define models to train: (Regressor class, model_type, model_filename)
+    # inlier_models = [
+    #     (TrainLinearRegressor, "linear", "flow2_linear_reg_inliers.pkl"),
+    #     (TrainLinearRegressor, "lasso", "flow2_lasso_reg_inliers.pkl"),
+    #     (TrainLinearRegressor, "ridge", "flow2_ridge_reg_inliers.pkl"),
+    #     (TrainRandomForestRegressor, None, "flow2_random_forest_reg_inliers.pkl"),
+    #     (TrainXGBoostRegressor, None, "flow2_xgboost_reg_inliers.pkl")
+    # ]
 
-    for reg_class, model_type, model_filename in inlier_models:
-        regressor = reg_class() if not model_type else reg_class(model_type=model_type)
-        fine_tune_dir = os.path.join(utility_funcs.fine_tune_dir, model_filename.replace(".pkl", ".md"))
+    # for reg_class, model_type, model_filename in inlier_models:
+    #     regressor = reg_class() if not model_type else reg_class(model_type=model_type)
+    #     fine_tune_dir = os.path.join(utility_funcs.fine_tune_dir, model_filename.replace(".pkl", ".md"))
 
-        train_evaluate_model(
-            regressor=regressor,
-            train_df=utility_funcs.inlier_train,
-            test_df=utility_funcs.inlier_test,
-            utils=utility_funcs,
-            fine_tune_filepath=fine_tune_dir,
-            save_filename=os.path.join(utility_funcs.models_dir, model_filename)
-        )
+    #     train_evaluate_model(
+    #         regressor=regressor,
+    #         train_df=utility_funcs.inlier_train,
+    #         test_df=utility_funcs.inlier_test,
+    #         utils=utility_funcs,
+    #         fine_tune_filepath=fine_tune_dir,
+    #         save_filename=os.path.join(utility_funcs.models_dir, model_filename)
+    #     )
 
-    # -------------------------
-    # Flow 2 - Outliers Training
-    # -------------------------
-    utility_funcs.load_outlier_data()
+    # # -------------------------
+    # # Flow 2 - Outliers Training
+    # # -------------------------
+    # utility_funcs.load_outlier_data()
 
-    # Use the same model setup for outliers (just change the filenames)
-    outlier_models = [
-        (TrainLinearRegressor, "linear", "flow2_linear_reg_outliers.pkl"),
-        (TrainLinearRegressor, "lasso", "flow2_lasso_reg_outliers.pkl"),
-        (TrainLinearRegressor, "ridge", "flow2_ridge_reg_outliers.pkl"),
-        (TrainRandomForestRegressor, None, "flow2_random_forest_reg_outliers.pkl"),
-        (TrainXGBoostRegressor, None, "flow2_xgboost_reg_outliers.pkl")
-    ]
+    # # Use the same model setup for outliers (just change the filenames)
+    # outlier_models = [
+    #     (TrainLinearRegressor, "linear", "flow2_linear_reg_outliers.pkl"),
+    #     (TrainLinearRegressor, "lasso", "flow2_lasso_reg_outliers.pkl"),
+    #     (TrainLinearRegressor, "ridge", "flow2_ridge_reg_outliers.pkl"),
+    #     (TrainRandomForestRegressor, None, "flow2_random_forest_reg_outliers.pkl"),
+    #     (TrainXGBoostRegressor, None, "flow2_xgboost_reg_outliers.pkl")
+    # ]
 
-    for reg_class, model_type, model_filename in outlier_models:
-        regressor = reg_class() if not model_type else reg_class(model_type=model_type)
-        fine_tune_dir = os.path.join(utility_funcs.fine_tune_dir, model_filename.replace(".pkl", ".md"))
+    # for reg_class, model_type, model_filename in outlier_models:
+    #     regressor = reg_class() if not model_type else reg_class(model_type=model_type)
+    #     fine_tune_dir = os.path.join(utility_funcs.fine_tune_dir, model_filename.replace(".pkl", ".md"))
 
-        train_evaluate_model(
-            regressor=regressor,
-            train_df=utility_funcs.outlier_train,
-            test_df=utility_funcs.outlier_test,
-            utils=utility_funcs,
-            fine_tune_filepath=fine_tune_dir,
-            save_filename=os.path.join(utility_funcs.models_dir, model_filename)
-        )
+    #     train_evaluate_model(
+    #         regressor=regressor,
+    #         train_df=utility_funcs.outlier_train,
+    #         test_df=utility_funcs.outlier_test,
+    #         utils=utility_funcs,
+    #         fine_tune_filepath=fine_tune_dir,
+    #         save_filename=os.path.join(utility_funcs.models_dir, model_filename)
+    #     )
