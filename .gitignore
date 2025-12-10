@@ -19,3 +19,8 @@ wwlLancMsc_data/~$wwlLancMsc_data.xlsx
 Data-Preprocessing.ipynb
 wwlLancMsc_data/dataDictionary.xlsx
 /Git-ignore
+/Flow 1 - Entire PreProcessed
+/Flow 2/Classification_Layer_Data
+/Flow 2
+/pre_trained_models
+*.ipynb
